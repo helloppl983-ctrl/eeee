@@ -1,0 +1,22 @@
+name: Production Build & Debug Check
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Fail if debug code is in the bundle
+        run: bash scripts/check-debug-bundle.sh dist
