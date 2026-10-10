@@ -1,0 +1,110 @@
+From ab999ef026707bef62fa59f5bf4025ec310a1eb2 Mon Sep 17 00:00:00 2001
+From: Saulg <helloppl983@gmail.com>
+Date: Sat, 10 Oct 2026 14:48:39 +1000
+Subject: [PATCH] Add production debug-bundle check and CSP snippet
+
+- scripts/check-debug-bundle.sh: fail the build if debug markers
+  (stability-debug, initDebug, __DEBUG__ by default) appear in dist/.
+- .github/workflows/build-check.yml: run npm ci, production build, and
+  the debug check on pushes to main and on pull requests.
+- deploy/nginx-csp.conf: CSP header snippet with the note that
+  location-level add_header overrides the server-level one.
+- .gitattributes: keep *.sh as LF so scripts run in Linux containers.
+
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+---
+ .gitattributes                    |  1 +
+ .github/workflows/build-check.yml | 22 ++++++++++++++++++++++
+ deploy/nginx-csp.conf             |  4 ++++
+ scripts/check-debug-bundle.sh     | 31 +++++++++++++++++++++++++++++++
+ 4 files changed, 58 insertions(+)
+ create mode 100644 .gitattributes
+ create mode 100644 .github/workflows/build-check.yml
+ create mode 100644 deploy/nginx-csp.conf
+ create mode 100644 scripts/check-debug-bundle.sh
+
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..dfdb8b7
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1 @@
++*.sh text eol=lf
+diff --git a/.github/workflows/build-check.yml b/.github/workflows/build-check.yml
+new file mode 100644
+index 0000000..5762225
+--- /dev/null
++++ b/.github/workflows/build-check.yml
+@@ -0,0 +1,22 @@
++name: Production Build & Debug Check
++on:
++  push:
++    branches: [ main ]
++  pull_request:
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++
++      - name: Install dependencies
++        run: npm ci
++
++      - name: Build production bundle
++        run: npm run build
++        env:
++          NODE_ENV: production
++
++      - name: Fail if debug code is in the bundle
++        run: bash scripts/check-debug-bundle.sh dist
+diff --git a/deploy/nginx-csp.conf b/deploy/nginx-csp.conf
+new file mode 100644
+index 0000000..e336bc9
+--- /dev/null
++++ b/deploy/nginx-csp.conf
+@@ -0,0 +1,4 @@
++# Include inside the server block: include /etc/nginx/snippets/csp.conf;
++# add_header is not inherited by a location block that sets its own add_header,
++# so the CSP is repeated in each such location.
++add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'" always;
+diff --git a/scripts/check-debug-bundle.sh b/scripts/check-debug-bundle.sh
+new file mode 100644
+index 0000000..856ccc6
+--- /dev/null
++++ b/scripts/check-debug-bundle.sh
+@@ -0,0 +1,31 @@
++#!/usr/bin/env bash
++# Fails the build if debug markers appear in the production output.
++# Usage: scripts/check-debug-bundle.sh [dist_dir] [marker ...]
++set -euo pipefail
++
++DIST="${1:-dist}"
++shift || true
++
++if [ "$#" -eq 0 ]; then
++  set -- "stability-debug" "initDebug" "__DEBUG__"
++fi
++
++if [ ! -d "$DIST" ]; then
++  echo "ERROR: build output '$DIST' not found" >&2
++  exit 2
++fi
++
++found=0
++for marker in "$@"; do
++  if grep -rIl --fixed-strings "$marker" "$DIST" >/dev/null 2>&1; then
++    echo "ERROR: debug marker '$marker' found in $DIST:"
++    grep -rIl --fixed-strings "$marker" "$DIST"
++    found=1
++  fi
++done
++
++if [ "$found" -eq 1 ]; then
++  exit 1
++fi
++
++echo "OK: no debug markers found in $DIST"
+-- 
+2.55.0.windows.5
+
