@@ -9,7 +9,7 @@ Adds build-time checks and a CSP snippet for production:
 
 ## Reviewer notes
 
-- The workflow assumes an npm project with a `build` script that outputs to `dist/`. Adjust the paths if the project differs.
+- The workflow assumes an npm project with a `build` script that outputs to `dist/`. Adjust the paths if the project differs. When there's no `package.json`, it skips the build and check instead of failing.
 - The check looks only for the debug markers. It doesn't grep for `console.log`, because Terser's `drop_console` already removes those calls.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

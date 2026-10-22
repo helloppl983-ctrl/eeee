@@ -1,7 +1,7 @@
 name: Production Build & Debug Check
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master, claude/iphone-15-banner-optimization-bd2602 ]
   pull_request:
 
 jobs:
@@ -10,13 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect npm project
+        id: detect
+        run: |
+          if [ -f package.json ]; then
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json found; skipping build and debug check."
+          fi
+
       - name: Install dependencies
+        if: steps.detect.outputs.npm == 'true'
         run: npm ci
 
       - name: Build production bundle
+        if: steps.detect.outputs.npm == 'true'
         run: npm run build
         env:
           NODE_ENV: production
 
       - name: Fail if debug code is in the bundle
+        if: steps.detect.outputs.npm == 'true'
         run: bash scripts/check-debug-bundle.sh dist
